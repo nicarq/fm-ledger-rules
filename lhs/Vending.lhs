@@ -29,6 +29,7 @@
 %format CHECK (check) (error) =  check
 %format   AND (check) (error) =  check
 %format RULE (env) (state1) (tx) (state2) = env "\vdash" state1 "\trans{vend}{" tx "}" state2
+%format ^. = "."
 %format @?= = "\stackrel{?}{=}"
 %format Right = "\text{Valid Transition: }"
 %format Left = "\text{Error: }"
@@ -44,10 +45,12 @@
 
 %if style == newcode
 
-> module LedgerSpec where
->
+> {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+> {-# LANGUAGE TemplateHaskell #-}
 > import Test.Tasty
 > import Test.Tasty.HUnit
+> import Lens.Micro ((^.), (&), (.~), (+~), (-~))
+> import Lens.Micro.TH (makeLenses)
 >
 
 %endif
@@ -96,8 +99,8 @@ and the number of remaining sodas.
 There are two signals, pushing the vending button or depositing some
 number of tokens.
 
-> data Env = MkEnv {getPower :: Bool, getCost :: Int} DERIVING
-> data St = MkSt {getTokens :: Int, getSodas :: Int} DERIVING
+> data Env = MkEnv {_power :: Bool, _cost :: Int} DERIVING
+> data St = MkSt {_tokens :: Int, _sodas :: Int} DERIVING
 > data Sig = Push | Deposit Int DERIVING
 > data Error = SmallDeposit | OutOfSoda | OutOfOrder DERIVING
 
@@ -108,6 +111,9 @@ number of tokens.
 
 %if style == newcode
 
+> makeLenses ''Env
+> makeLenses ''St
+>
 > vend :: Env -> St -> Sig -> Either [Error] St
 > vend env st (Deposit t) =
 >   let
@@ -118,7 +124,7 @@ number of tokens.
 \inference[vending-rule-deposit]
 {%
 
->     CHECK (getPower env) OutOfOrder
+>     CHECK (env^.power) OutOfOrder
 
 }{%
 %if style == newcode
@@ -127,7 +133,7 @@ number of tokens.
 
 %endif
 
->     RULE (MkEnv power cost) (MkSt tokens sodas) (Deposit t) (MkSt (getTokens st + t) (getSodas st))
+>     RULE (MkEnv power cost) (MkSt tokens sodas) (Deposit t) (MkSt (st^.tokens + t) (st^.sodas))
 
 }
 \end{equation}
@@ -145,12 +151,12 @@ number of tokens.
 \inference[vending-rule-push]
 {%
 
->     CHECK (getPower env) OutOfOrder
->     AND   (getTokens st >= getCost env) SmallDeposit
->     AND   (getSodas st /= 0) OutOfSoda
+>     CHECK (env^.power) OutOfOrder
+>     AND   (st^.tokens >= env^.cost) SmallDeposit
+>     AND   (st^.sodas /= 0) OutOfSoda
 >
->     tokens'  =  getTokens st - getCost env
->     sodas'   =  getSodas st - 1
+>     tokens'  =  st^.tokens - env^.cost
+>     sodas'   =  st^.sodas - 1
 
 }{%
 %if style == newcode
@@ -198,7 +204,9 @@ number of tokens.
 
 > tests :: TestTree
 > tests = testGroup "Inference Rules Tests" [unitTests]
-
+>
+> main :: IO()
+> main = defaultMain tests
 %endif
 
 \end{document}
